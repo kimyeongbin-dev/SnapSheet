@@ -1,67 +1,98 @@
+import os
+import uuid
+import shutil
+import json
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import os
-import shutil
-import uuid
-# ocr_engine.py에서 만든 함수를 가져옵니다.
-from ocr_engine import process_document
+from dotenv import load_dotenv
+import google.generativeai as genai
+from PIL import Image
+import re
+
+load_dotenv()
+api_key = os.getenv("GOOGLE_API_KEY")
+
+if not api_key:
+    print("❌ 에러: GOOGLE_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.")
+
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 app = FastAPI(title="SnapSheet API")
 
-# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"], 
+    allow_origins=["*"], # 테스트를 위해 일시적으로 전체 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 임시 파일 저장소 설정
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.post("/api/upload")
 async def parse_uploaded_image(file: UploadFile = File(...)):
-    # 1. 파일 확장자 검증
-    allowed_extensions = (".jpg", ".jpeg", ".png")
-    if not file.filename.lower().endswith(allowed_extensions):
-        raise HTTPException(
-            status_code=400, 
-            detail="지원하지 않는 파일 형식입니다. JPG 또는 PNG 파일만 올려주세요."
-        )
-
-    # 2. 고유 파일명 생성 및 저장
-    # 파일명이 중복되지 않도록 UUID를 사용합니다.
-    file_extension = os.path.splitext(file.filename)[1]
-    temp_file_name = f"{uuid.uuid4()}{file_extension}"
-    temp_file_path = os.path.join(UPLOAD_DIR, temp_file_name)
+    temp_file_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}_{file.filename}")
 
     try:
-        # 비동기로 파일을 읽어 로컬에 저장 (OCR 엔진은 파일 경로를 필요로 함)
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 3. [핵심] OCR 엔진 가동 (ocr_engine.py의 함수 호출)
-        ocr_result = process_document(temp_file_path)
+        # 이미지 전처리 (RGBA -> RGB)
+        img = Image.open(temp_file_path).convert("RGB")
 
-        # 4. 분석 완료 후 임시 파일 삭제 (서버 용량 관리)
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        prompt = """
+        이미지 속 표 데이터를 분석하여 아래의 JSON 구조로만 응답해줘. 
+        참고사항:
+        1. 모든 금액은 콤마(,)와 기호(▲, ▼, +, - 등)를 제거하고 오직 정수(integer)로만 변환해줘.
+        2. 잉여/초과 구분: 잉여(금액이 남은 경우)는 양수, 초과(지출이 더 많은 경우)는 음수로 표현해줘.
+        3. 데이터가 비어있으면 0으로 처리해줘.
+        4. 지출, 고정 지출, 투자&저축 등 카테고리 구분이 명확하지 않으면 모두 "유동비"로 통일하고 있다면 나눠서 표현해줘.
+        4. 마크다운 기호 없이 순수 JSON만 반환해줘.
 
-        # 5. 결과 반환
+        JSON 구조:
+        {
+          "title": "표의 전체 제목",
+          "items": [
+            {
+              "category": "항목명 (string)",
+              "sub_category": "세부 항목명 (string, 없으면 빈 문자열)",
+              "description": "추가 설명 (string, 없으면 빈 문자열)",
+              "budget": "월 예산 금액 (int)",
+              "spent": "실 지출액 (int)",
+              "diff": "잉여 또는 초과 금액 (int)"
+            }
+          ],
+          "total": {
+            "budget_sum": "예산 합계 (int)",
+            "spent_sum": "지출 합계 (int)",
+            "diff_sum": "차이 합계 (int)"
+          }
+        }
+        """
+
+        response = model.generate_content([prompt, img])
+        
+        # JSON 블록만 추출하는 정규식
+        json_match = re.search(r"\{.*\}", response.text, re.DOTALL)
+        if json_match:
+            final_json = json.loads(json_match.group())
+        else:
+            raise ValueError("Gemini가 유효한 JSON을 생성하지 못했습니다.")
+
         return {
             "status": "success",
-            "file_name": file.filename,
-            "analysis_result": ocr_result
+            "analysis_result": final_json
         }
 
     except Exception as e:
-        # 에러 발생 시 파일 삭제 시도 후 에러 반환
+        print(f"❌ 서버 내부 에러 발생: {str(e)}") # 터미널에서 에러 확인용
+        return {"status": "error", "message": str(e)}
+    finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
-        raise HTTPException(status_code=500, detail=f"OCR 분석 중 오류 발생: {str(e)}")
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
