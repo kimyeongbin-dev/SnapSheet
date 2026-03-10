@@ -1,84 +1,29 @@
 /**
- * [역할] 루트 컴포넌트 - 전역 상태 관리 및 레이아웃 구성
- * - 파일 선택, 분석 요청, 결과/에러 상태 관리
- * - UploadPanel과 ResultPanel을 조합하여 메인 화면 구성
+ * [역할] 루트 컴포넌트 - 라우터 설정 및 전역 레이아웃 구성
+ * - React Router로 Dashboard / Scanner 페이지 라우팅
+ * - Layout 컴포넌트로 공통 nav/footer 래핑
  *
- * [추가 예정]
- * - 전역 상태 관리 도입 시 Context 또는 Zustand로 분리
- * - 분석 히스토리 목록 상태 관리
+ * 구버전(App.tsx)은 NavBar + UploadPanel + ResultPanel을 직접 조합하는
+ * 단일 페이지 구조였으나, Layout + pages 구조로 전환됨
  */
 
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
-import { uploadReceipt } from './services/api';
-import { AnalysisResponse } from './types/expense';
-import NavBar from './components/NavBar';
-import UploadPanel from './components/UploadPanel';
-import ResultPanel from './components/ResultPanel';
+import { Layout } from './components/Layout';
+import { Dashboard } from './pages/Dashboard';
+import { Scanner } from './pages/Scanner';
 
 export default function App() {
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFileSelect = (selectedFile: File) => {
-    setFile(selectedFile);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-      setError(null);
-      setResult(null);
-    };
-    reader.readAsDataURL(selectedFile);
-  };
-
-  const handleAnalyze = async () => {
-    if (!file) return;
-
-    setIsAnalyzing(true);
-    setError(null);
-    try {
-      const analysisResult = await uploadReceipt(file);
-      setResult(analysisResult);
-    } catch (err: any) {
-      setError(err.message || '분석 중 오류가 발생했습니다. 백엔드 서버 연결을 확인해주세요.');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-[#1A1A1A] font-sans">
-      <NavBar />
-
-      <main className="max-w-6xl mx-auto p-6 md:p-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-4">
-            <UploadPanel
-              imagePreview={imagePreview}
-              isAnalyzing={isAnalyzing}
-              hasFile={!!file}
-              error={error}
-              onFileSelect={handleFileSelect}
-              onAnalyze={handleAnalyze}
-            />
-          </div>
-
-          <div className="lg:col-span-8">
-            <AnimatePresence mode="wait">
-              <ResultPanel result={result} />
-            </AnimatePresence>
-          </div>
-        </div>
-      </main>
-
-      <footer className="max-w-6xl mx-auto p-10 mt-10 border-t border-black/5 text-center">
-        <p className="text-xs font-bold text-gray-300 uppercase tracking-[0.2em]">
-          Powered by SnapSheet AI Engine
-        </p>
-      </footer>
-    </div>
+    <BrowserRouter>
+      <Layout>
+        <AnimatePresence mode="wait">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/scanner" element={<Scanner />} />
+          </Routes>
+        </AnimatePresence>
+      </Layout>
+    </BrowserRouter>
   );
 }
