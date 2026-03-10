@@ -17,7 +17,7 @@ import ssl
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
+from sqlmodel import SQLModel
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -46,8 +46,6 @@ async_session_maker = async_sessionmaker(
     autoflush=False,
 )
 
-# ORM 모델 베이스 클래스
-Base = declarative_base()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -62,4 +60,4 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """테이블 생성 (개발 환경용)"""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(SQLModel.metadata.create_all)

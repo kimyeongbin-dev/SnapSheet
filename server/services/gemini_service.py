@@ -78,7 +78,13 @@ def _group_by_category(raw: GeminiRawResult) -> AnalysisResult:
     )
 
 
-def parse_image_to_expenses(img: Image.Image) -> AnalysisResult:
+def parse_image_to_expenses(img: Image.Image) -> tuple[dict, AnalysisResult]:
+    """
+    이미지를 분석하여 가계부 데이터 추출
+
+    Returns:
+        tuple[dict, AnalysisResult]: (원본 JSON dict, 카테고리별 그룹화된 결과)
+    """
     response = client.models.generate_content(
         model="gemini-2.5-flash-lite",
         contents=[GEMINI_PROMPT, img],
@@ -88,5 +94,6 @@ def parse_image_to_expenses(img: Image.Image) -> AnalysisResult:
     if not json_match:
         raise ValueError("Gemini가 유효한 JSON을 생성하지 못했습니다.")
 
-    raw = GeminiRawResult(**json.loads(json_match.group()))
-    return _group_by_category(raw)
+    raw_json = json.loads(json_match.group())
+    raw = GeminiRawResult(**raw_json)
+    return raw_json, _group_by_category(raw)

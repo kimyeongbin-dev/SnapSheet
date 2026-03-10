@@ -8,5 +8,6 @@ pydantic==2.12.5
 pygments==2.19.2
 
 # Database (Async)
+sqlmodel==0.0.24
 sqlalchemy[asyncio]==2.0.41
 asyncpg==0.30.0

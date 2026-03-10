@@ -18,6 +18,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.upload import router as upload_router
+from routers.feedback import router as feedback_router
 from database import init_db, engine
 # ORM 모델 import (테이블 생성을 위해 필요)
 from models.db_models import GeminiRawData, Expense, OcrCorrection  # noqa: F401
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(upload_router, prefix="/api")
+app.include_router(feedback_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
