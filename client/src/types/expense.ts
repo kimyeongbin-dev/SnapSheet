@@ -7,6 +7,7 @@
  */
 
 export interface ExpenseItem {
+  date: string;
   category: string;
   sub_category: string;
   description: string;
@@ -25,5 +26,9 @@ export interface GroupedExpenses {
 export interface AnalysisResponse {
   title: string;
   grouped_items: GroupedExpenses;
-  total: { spent_sum: number };
+  total: { 
+    budget_sum?: number;
+    spent_sum: number;
+    diff_sum?: number;
+  };
 }

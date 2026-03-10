@@ -17,3 +17,9 @@ client/coverage/
 client/.env*
 client/.DS_Store
 client/*.log
+
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
