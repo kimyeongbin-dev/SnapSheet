@@ -1,32 +1,16 @@
 /**
- * [역할] 분석 결과 패널 (우측)
+ * [역할] 분석 결과 패널 (Scanner 페이지 우측)
  * - 카테고리 선택 버튼 및 총액 표시
  * - 선택된 카테고리의 세부 항목 표시 (sub_category별 그룹화)
  * - 결과 없을 때 빈 상태(Empty State) UI
- *
- * [추가 예정]
- * - 데이터 내보내기 (CSV, Excel)
- * - 카테고리별 차트 시각화
  */
 
 import { useState, useMemo, useEffect } from 'react';
-import { DollarSign, LayoutGrid, Layers, Search, Calendar } from 'lucide-react';
+import { DollarSign, LayoutGrid, Layers, Search, Plus, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AnalysisResponse, ExpenseItem } from '../types/expense';
-import ExpenseCard from './ExpenseCard';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  '식비': 'bg-orange-100 text-orange-600 border-orange-200',
-  '교통': 'bg-blue-100 text-blue-600 border-blue-200',
-  '쇼핑': 'bg-pink-100 text-pink-600 border-pink-200',
-  '의료': 'bg-emerald-100 text-emerald-600 border-emerald-200',
-  '주거': 'bg-indigo-100 text-indigo-600 border-indigo-200',
-  '교육': 'bg-purple-100 text-purple-600 border-purple-200',
-  '기타': 'bg-gray-100 text-gray-600 border-gray-200',
-};
-
-const getCategoryStyle = (category: string) =>
-  CATEGORY_COLORS[category] || 'bg-emerald-100 text-emerald-600 border-emerald-200';
+import { getCategoryStyle } from '../constants/categories';
+import { isIncomeCategory } from '../utils/expense';
 
 interface ResultPanelProps {
   result: AnalysisResponse | null;
@@ -34,6 +18,7 @@ interface ResultPanelProps {
 
 export default function ResultPanel({ result }: ResultPanelProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'expense' | 'income'>('expense');
 
   useEffect(() => {
     if (result) {
@@ -57,6 +42,58 @@ export default function ResultPanel({ result }: ResultPanelProps) {
     });
     return groups;
   }, [result, selectedCategory]);
+
+  const categoryMetadata = useMemo(() => {
+    if (!result) return { roots: [], leaves: [], all: [] };
+
+    const categories = Object.keys(result.grouped_items);
+    const roots: string[] = [];
+    const leaves: string[] = [];
+
+    categories.forEach(cat => {
+      const data = result.grouped_items[cat];
+      const isSummary = data.items.length > 0 && data.items.every(item => !item.description && item.sub_category);
+      if (isSummary) {
+        roots.push(cat);
+      } else {
+        leaves.push(cat);
+      }
+    });
+
+    return { roots, leaves, all: categories };
+  }, [result]);
+
+  const calculatedTotals = useMemo(() => {
+    if (!result) return { income: 0, expense: 0, savings: 0 };
+
+    let income = 0;
+    let expense = 0;
+    let savings = 0;
+
+    categoryMetadata.all.forEach(cat => {
+      const data = result.grouped_items[cat];
+      if (categoryMetadata.roots.includes(cat)) return;
+
+      if (isIncomeCategory(cat)) {
+        income += data.total_spent;
+      } else if (cat.includes('저축') || cat.includes('투자') || cat.includes('청약')) {
+        savings += data.total_spent;
+        expense += data.total_spent;
+      } else {
+        expense += data.total_spent;
+      }
+    });
+
+    return { income, expense, savings };
+  }, [result, categoryMetadata]);
+
+  const filteredCategories = useMemo(() => {
+    if (!result) return [];
+    return categoryMetadata.all.filter(cat => {
+      const isInc = isIncomeCategory(cat);
+      return viewMode === 'income' ? isInc : !isInc;
+    });
+  }, [result, categoryMetadata, viewMode]);
 
   if (!result) {
     return (
@@ -87,41 +124,72 @@ export default function ResultPanel({ result }: ResultPanelProps) {
       className="space-y-8"
     >
       {/* Summary Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight">{result.title || '추출된 데이터'}</h2>
-          <p className="text-gray-500 mt-1 flex items-center gap-2">
-            <Calendar className="w-4 h-4" /> {new Date().toLocaleDateString()} 분석 완료
-          </p>
-        </div>
-        <div className="bg-white px-8 py-4 rounded-3xl shadow-xl shadow-black/5 border border-black/5 flex items-center gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white px-8 py-6 rounded-3xl shadow-xl shadow-black/5 border border-black/5 flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center">
-            <DollarSign className="w-6 h-6 text-emerald-600" />
+            <Plus className="w-6 h-6 text-emerald-600" />
           </div>
           <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Value</p>
-            <p className="text-2xl font-black">{result.total.spent_sum.toLocaleString()}원</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Income</p>
+            <p className="text-2xl font-black text-emerald-600">{calculatedTotals.income.toLocaleString()}원</p>
+          </div>
+        </div>
+        <div className="bg-white px-8 py-6 rounded-3xl shadow-xl shadow-black/5 border border-black/5 flex items-center gap-4">
+          <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
+            <DollarSign className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Expense</p>
+            <p className="text-2xl font-black text-red-600">{calculatedTotals.expense.toLocaleString()}원</p>
+          </div>
+        </div>
+        <div className="bg-white px-8 py-6 rounded-3xl shadow-xl shadow-black/5 border border-black/5 flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Net Balance</p>
+            <p className="text-2xl font-black text-blue-600">
+              {(calculatedTotals.income - calculatedTotals.expense).toLocaleString()}원
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Category Selector */}
-      <div className="flex flex-wrap gap-3">
-        {Object.keys(result.grouped_items).map((category) => (
+      {/* View Toggle & Category Selector */}
+      <div className="space-y-6">
+        <div className="flex p-1 bg-gray-100 rounded-2xl w-fit">
           <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
-            className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all border-2 flex items-center gap-2
-              ${selectedCategory === category
-                ? `${getCategoryStyle(category)} border-current shadow-lg`
-                : 'bg-white border-transparent text-gray-500 hover:bg-gray-50'
-              }`}
+            onClick={() => { setViewMode('expense'); setSelectedCategory(null); }}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'expense' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
           >
-            <LayoutGrid className="w-4 h-4" />
-            {category}
-            <span className="ml-1 opacity-50">({result.grouped_items[category].items.length})</span>
+            지출 내역
           </button>
-        ))}
+          <button
+            onClick={() => { setViewMode('income'); setSelectedCategory(null); }}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'income' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            수입 내역
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          {filteredCategories.map((category) => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all border-2 flex items-center gap-2
+                ${selectedCategory === category
+                  ? `${getCategoryStyle(category)} border-current shadow-lg`
+                  : 'bg-white border-transparent text-gray-500 hover:bg-gray-50'
+                }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              {category}
+              <span className="ml-1 opacity-50">({result.grouped_items[category].items.length})</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Category Detail */}
@@ -151,14 +219,46 @@ export default function ResultPanel({ result }: ResultPanelProps) {
               <div className="space-y-10">
                 {(Object.entries(subGroupedItems) as [string, ExpenseItem[]][]).map(([sub, items]) => (
                   <div key={sub} className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">{sub}</h4>
-                      <div className="h-px flex-1 bg-black/5" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">{sub}</h4>
+                        <div className="h-px w-24 bg-black/5" />
+                      </div>
+                      <span className="text-xs font-bold text-gray-400">{items.length} items</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {items.map((item, idx) => (
-                        <ExpenseCard key={idx} item={item} />
-                      ))}
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-black/5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            <th className="pb-3 pl-2">Date</th>
+                            <th className="pb-3">Description</th>
+                            <th className="pb-3 text-right">Budget</th>
+                            <th className="pb-3 text-right pr-2">Spent</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-black/5">
+                          {items.map((item, idx) => (
+                            <tr key={idx} className="group hover:bg-gray-50/50 transition-colors">
+                              <td className="py-4 pl-2 text-xs font-medium text-gray-400 tabular-nums">
+                                {item.date || '-'}
+                              </td>
+                              <td className="py-4">
+                                <p className="text-sm font-bold text-gray-900">{item.description}</p>
+                                <p className="text-[10px] text-gray-400 font-medium">{item.sub_category}</p>
+                              </td>
+                              <td className="py-4 text-right text-xs font-bold text-gray-400 tabular-nums">
+                                {item.budget > 0 ? `${item.budget.toLocaleString()}원` : '-'}
+                              </td>
+                              <td className="py-4 text-right pr-2">
+                                <span className="text-sm font-black text-gray-900 tabular-nums">
+                                  {item.spent.toLocaleString()}원
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 ))}
