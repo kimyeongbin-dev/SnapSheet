@@ -6,3 +6,7 @@ Pillow==12.1.1
 python-multipart==0.0.22
 pydantic==2.12.5
 pygments==2.19.2
+
+# Database (Async)
+sqlalchemy[asyncio]==2.0.41
+asyncpg==0.30.0
