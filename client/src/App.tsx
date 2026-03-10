@@ -16,7 +16,6 @@ import NavBar from './components/NavBar';
 import UploadPanel from './components/UploadPanel';
 import ResultPanel from './components/ResultPanel';
 
-
 export default function App() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
