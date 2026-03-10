@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 
 class ExpenseItem(BaseModel):
+    date: str = ""
     category: str
     sub_category: str = ""
     description: str = ""
