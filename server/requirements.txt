@@ -5,3 +5,4 @@ google-genai==1.66.0
 Pillow==12.1.1
 python-multipart==0.0.22
 pydantic==2.12.5
+pygments==2.19.2
