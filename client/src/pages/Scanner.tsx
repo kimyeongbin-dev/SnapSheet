@@ -11,6 +11,37 @@ import { ExpenseItem, AnalysisResponse } from '../types/expense';
 import { getCategoryStyle } from '../constants/categories';
 import { isIncomeCategory } from '../utils/expense';
 
+// 날짜 정규화: 년월 없이 일만 있으면 현재 년월 붙이기
+const normalizeDate = (dateStr: string | undefined): string => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+
+  if (!dateStr) return `${yyyy}-${mm}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // 이미 yyyy-MM-dd 형식이면 그대로
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+  // 일만 있는 경우: "25", "3" 등
+  if (/^\d{1,2}$/.test(dateStr.trim())) {
+    const day = String(parseInt(dateStr)).padStart(2, '0');
+    return `${yyyy}-${mm}-${day}`;
+  }
+
+  // MM-dd 또는 MM/dd 형식
+  const mmdd = dateStr.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+  if (mmdd) {
+    return `${yyyy}-${String(mmdd[1]).padStart(2, '0')}-${String(mmdd[2]).padStart(2, '0')}`;
+  }
+
+  // 파싱 가능한 날짜면 변환
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+
+  // 파싱 실패 시 오늘 날짜
+  return `${yyyy}-${mm}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
 export const Scanner: React.FC = () => {
   const navigate = useNavigate();
   const { addTransaction } = useTransactions();
@@ -63,7 +94,7 @@ export const Scanner: React.FC = () => {
             items.push({
               ...item,
               id: crypto.randomUUID(),
-              date: item.date || new Date().toISOString().split('T')[0],
+              date: normalizeDate(item.date),
             });
           }
         });
