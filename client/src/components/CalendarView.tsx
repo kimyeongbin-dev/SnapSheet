@@ -57,7 +57,7 @@ export function CalendarView({ transactions }: CalendarViewProps) {
   // 최대 지출액 (색상 강도 계산용)
   const maxExpense = useMemo(() => {
     const values = Object.values(dailyExpenses);
-    return values.length > 0 ? Math.max(...values) : 0;
+    return values.length > 0 ? Math.max(...(values as number[])) : 0;
   }, [dailyExpenses]);
 
   // 달력 그리드 계산
