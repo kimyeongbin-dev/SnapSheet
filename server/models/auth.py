@@ -46,7 +46,7 @@ class RefreshRequest(BaseModel):
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
-    username: Optional[str] = None
+    name: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
