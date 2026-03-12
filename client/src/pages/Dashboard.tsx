@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutGrid, ChevronRight, Wallet, DollarSign,
+  LayoutGrid, ChevronRight, ChevronLeft, Wallet, DollarSign,
   ArrowUpRight, ArrowDownRight, Search, Edit2, Trash2,
   BarChart2, Calendar, TrendingUp,
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { getCategoryStyle } from '../constants/categories';
 import { isIncomeCategory } from '../utils/expense';
 import { CategoryPieChart, DailyBarChart, MonthlyBarChart } from '../components/Charts';
 import { CalendarView } from '../components/CalendarView';
+import { DatePickerPopover } from '../components/DatePickerPopover';
 import { submitFeedback } from '../services/api';
 import { Link } from 'react-router-dom';
 
@@ -27,13 +28,45 @@ export const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const today = new Date();
-  const [chartYear] = useState(today.getFullYear());
-  const [chartMonth] = useState(today.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  // 이번 달 / 지난 달 지출 계산
+  const navigateMonth = (dir: 1 | -1) => {
+    const next = selectedMonth + dir;
+    if (next < 1) { setSelectedYear(selectedYear - 1); setSelectedMonth(12); }
+    else if (next > 12) { setSelectedYear(selectedYear + 1); setSelectedMonth(1); }
+    else setSelectedMonth(next);
+    setSelectedDay(null);
+    setSelectedCategory(null);
+  };
+
+  const handleDateChange = (y: number, m: number, d: number | null) => {
+    setSelectedYear(y);
+    setSelectedMonth(m);
+    setSelectedDay(d);
+    setSelectedCategory(null);
+  };
+
+  // 선택 월(일) 트랜잭션
+  const monthlyTransactions = useMemo(() =>
+    transactions.filter(t => {
+      if (!t.date) return false;
+      const d = new Date(t.date);
+      if (d.getFullYear() !== selectedYear || d.getMonth() + 1 !== selectedMonth) return false;
+      if (selectedDay !== null) return d.getDate() === selectedDay;
+      return true;
+    }),
+    [transactions, selectedYear, selectedMonth, selectedDay]
+  );
+
+  // 선택 월 요약
   const monthlyStats = useMemo(() => {
-    const thisMonth = { income: 0, expense: 0 };
-    const lastMonth = { income: 0, expense: 0 };
+    const cur = { income: 0, expense: 0 };
+    const prev = { income: 0, expense: 0 };
+
+    const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+    const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
 
     transactions.forEach(t => {
       if (!t.date) return;
@@ -42,41 +75,41 @@ export const Dashboard: React.FC = () => {
       const m = d.getMonth() + 1;
       const isInc = isIncomeCategory(t.category);
 
-      if (y === today.getFullYear() && m === today.getMonth() + 1) {
-        if (isInc) thisMonth.income += t.spent;
-        else thisMonth.expense += t.spent;
+      if (y === selectedYear && m === selectedMonth) {
+        if (isInc) cur.income += t.spent;
+        else cur.expense += t.spent;
       }
-
-      const lastDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      if (y === lastDate.getFullYear() && m === lastDate.getMonth() + 1) {
-        if (isInc) lastMonth.income += t.spent;
-        else lastMonth.expense += t.spent;
+      if (y === prevYear && m === prevMonth) {
+        if (isInc) prev.income += t.spent;
+        else prev.expense += t.spent;
       }
     });
 
-    const expenseChange = lastMonth.expense > 0
-      ? ((thisMonth.expense - lastMonth.expense) / lastMonth.expense) * 100
+    const expenseChange = prev.expense > 0
+      ? ((cur.expense - prev.expense) / prev.expense) * 100
       : 0;
 
-    return { thisMonth, lastMonth, expenseChange };
-  }, [transactions]);
+    return { cur, prev, expenseChange };
+  }, [transactions, selectedYear, selectedMonth]);
 
+  // 선택 월 카테고리 목록
   const categories = useMemo(() => {
-    const cats = Array.from(new Set(transactions.map(t => t.category)));
+    const cats = Array.from(new Set(monthlyTransactions.map(t => t.category)));
     return cats.sort();
-  }, [transactions]);
+  }, [monthlyTransactions]);
 
-  const filteredCategories = useMemo(() => {
-    return categories.filter(cat => {
+  const filteredCategories = useMemo(() =>
+    categories.filter(cat => {
       const isInc = isIncomeCategory(cat);
       return viewMode === 'income' ? isInc : !isInc;
-    });
-  }, [categories, viewMode]);
+    }),
+    [categories, viewMode]
+  );
 
   const displayItems = useMemo(() => {
     if (!selectedCategory) return [];
-    return transactions.filter(t => t.category === selectedCategory);
-  }, [transactions, selectedCategory]);
+    return monthlyTransactions.filter(t => t.category === selectedCategory);
+  }, [monthlyTransactions, selectedCategory]);
 
   const groupedDisplayItems = useMemo(() => {
     const groups: Record<string, ExpenseItem[]> = {};
@@ -109,7 +142,6 @@ export const Dashboard: React.FC = () => {
     updateTransaction(editingItem);
     setIsModalOpen(false);
 
-    // 완전히 입력된 경우에만 오독 사전 피드백 전송 (fire-and-forget)
     if (isComplete && originalItem) {
       const corrections: { wrong_text: string; correct_text: string; category_hint?: string; field_scope?: 'category' | 'sub_category' | 'description' }[] = [];
       const textFields = [
@@ -132,7 +164,7 @@ export const Dashboard: React.FC = () => {
       }
 
       if (corrections.length > 0) {
-        submitFeedback(corrections).catch(() => {/* 피드백 실패는 무시 */});
+        submitFeedback(corrections).catch(() => {});
       }
     }
 
@@ -152,28 +184,60 @@ export const Dashboard: React.FC = () => {
     { id: 'calendar' as TabType, label: '달력', icon: Calendar },
   ];
 
+  const monthlyBalance = monthlyStats.cur.income - monthlyStats.cur.expense;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
+      {/* 년/월 선택기 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight">Finance Manager</h2>
+          <p className="text-gray-400 text-sm mt-1">총 {transactions.length}건 관리 중</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl shadow-xl shadow-black/5 border border-black/5">
+          <button onClick={() => navigateMonth(-1)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </button>
+          <button
+            onClick={() => selectedDay !== null && handleDateChange(selectedYear, selectedMonth, null)}
+            className={`text-base font-black tracking-tight text-center transition-colors min-w-32
+              ${selectedDay !== null ? 'text-emerald-600 hover:text-emerald-700 cursor-pointer' : 'cursor-default'}`}
+          >
+            {selectedYear}년 {selectedMonth}월{selectedDay !== null ? ` ${selectedDay}일` : ''}
+          </button>
+          <button onClick={() => navigateMonth(1)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </button>
+          <div className="w-px h-5 bg-gray-200 mx-1" />
+          <DatePickerPopover
+            year={selectedYear}
+            month={selectedMonth}
+            day={selectedDay}
+            onChange={handleDateChange}
+          />
+        </div>
+      </div>
+
       {/* 상단 요약 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
           <div className="flex items-center gap-2 text-emerald-600 mb-3">
             <ArrowUpRight className="w-5 h-5" />
-            <span className="text-[10px] font-black uppercase tracking-wider">이번 달 수입</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">{selectedMonth}월 수입</span>
           </div>
-          <p className="text-3xl font-black text-emerald-900">{monthlyStats.thisMonth.income.toLocaleString()}원</p>
+          <p className="text-3xl font-black text-emerald-900">{monthlyStats.cur.income.toLocaleString()}원</p>
         </div>
 
         <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
           <div className="flex items-center gap-2 text-red-500 mb-3">
             <ArrowDownRight className="w-5 h-5" />
-            <span className="text-[10px] font-black uppercase tracking-wider">이번 달 지출</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">{selectedMonth}월 지출</span>
           </div>
-          <p className="text-3xl font-black text-red-900">{monthlyStats.thisMonth.expense.toLocaleString()}원</p>
+          <p className="text-3xl font-black text-red-900">{monthlyStats.cur.expense.toLocaleString()}원</p>
           {monthlyStats.expenseChange !== 0 && (
             <p className={`text-xs font-bold mt-1 flex items-center gap-1 ${monthlyStats.expenseChange > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
               <TrendingUp className="w-3 h-3" />
@@ -185,13 +249,14 @@ export const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
           <div className="flex items-center gap-2 text-blue-500 mb-3">
             <DollarSign className="w-5 h-5" />
-            <span className="text-[10px] font-black uppercase tracking-wider">순 잔액</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">{selectedMonth}월 잔액</span>
           </div>
-          <p className={`text-3xl font-black ${totals.balance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-            {totals.balance.toLocaleString()}원
+          <p className={`text-3xl font-black ${monthlyBalance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+            {monthlyBalance.toLocaleString()}원
           </p>
-          <p className="text-xs font-bold text-gray-400 mt-1">
-            총 {transactions.length}건
+          <p className="text-xs font-bold text-gray-400 mt-1 flex items-center gap-1">
+            <Wallet className="w-3 h-3" />
+            전체 잔액 {totals.balance.toLocaleString()}원
           </p>
         </div>
       </div>
@@ -263,7 +328,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <span className="text-[10px] font-black opacity-50">
-                          {transactions.filter(t => t.category === category).length}
+                          {monthlyTransactions.filter(t => t.category === category).length}
                         </span>
                         <ChevronRight className={`w-3.5 h-3.5 transition-transform ${selectedCategory === category ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} />
                       </div>
@@ -295,7 +360,7 @@ export const Dashboard: React.FC = () => {
                         <div className="text-right">
                           <p className="text-[10px] font-bold text-gray-400 uppercase">합계</p>
                           <p className="text-lg font-black">
-                            {transactions.filter(t => t.category === selectedCategory).reduce((acc, curr) => acc + curr.spent, 0).toLocaleString()}원
+                            {displayItems.reduce((acc, curr) => acc + curr.spent, 0).toLocaleString()}원
                           </p>
                         </div>
                       </div>
@@ -382,13 +447,13 @@ export const Dashboard: React.FC = () => {
             exit={{ opacity: 0, y: -10 }}
             className="grid grid-cols-1 lg:grid-cols-2 gap-8"
           >
-            {transactions.length === 0 ? (
+            {monthlyTransactions.length === 0 ? (
               <div className="lg:col-span-2 bg-white rounded-[2rem] shadow-xl shadow-black/5 border border-black/5 flex flex-col items-center justify-center text-center p-20 gap-6">
                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
                   <BarChart2 className="w-9 h-9 text-gray-200" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold mb-2">분석할 데이터가 없습니다</h3>
+                  <h3 className="text-lg font-bold mb-2">{selectedYear}년 {selectedMonth}월 데이터가 없습니다</h3>
                   <p className="text-gray-400 text-sm">AI 스캐너로 데이터를 추가하면 차트가 표시됩니다.</p>
                 </div>
                 <Link to="/scanner" className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100">
@@ -399,19 +464,19 @@ export const Dashboard: React.FC = () => {
               <>
                 <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
                   <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">카테고리별 지출 비중</h3>
-                  <CategoryPieChart transactions={transactions} />
+                  <CategoryPieChart transactions={monthlyTransactions} />
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
                   <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">
-                    {chartYear}년 {chartMonth}월 일별 지출
+                    {selectedYear}년 {selectedMonth}월 일별 지출
                   </h3>
-                  <DailyBarChart transactions={transactions} year={chartYear} month={chartMonth} />
+                  <DailyBarChart transactions={transactions} year={selectedYear} month={selectedMonth} />
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5 lg:col-span-2">
                   <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">
-                    {chartYear}년 월별 수입/지출
+                    {selectedYear}년 월별 수입/지출
                   </h3>
-                  <MonthlyBarChart transactions={transactions} year={chartYear} />
+                  <MonthlyBarChart transactions={transactions} year={selectedYear} />
                 </div>
               </>
             )}
@@ -441,13 +506,12 @@ export const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-black/5 border border-black/5">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">달력으로 보기</h3>
-                  <div className="flex items-center gap-4 text-sm font-bold text-gray-400">
-                    <span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" /> 총 {transactions.length}건</span>
-                  </div>
-                </div>
-                <CalendarView transactions={transactions} />
+                <CalendarView
+                  transactions={transactions}
+                  year={selectedYear}
+                  month={selectedMonth}
+                  onNavigate={(y, m) => { setSelectedYear(y); setSelectedMonth(m); }}
+                />
               </div>
             )}
           </motion.div>
