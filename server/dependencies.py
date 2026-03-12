@@ -10,7 +10,7 @@ from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models.db_models import User
+from models.db_auth import User
 from services.auth_service import decode_access_token
 
 bearer_scheme = HTTPBearer()

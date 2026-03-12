@@ -24,7 +24,8 @@ from routers.auth import router as auth_router
 from routers.users import router as users_router
 from database import init_db, engine
 # ORM 모델 import (테이블 생성을 위해 필요)
-from models.db_models import GeminiRawData, Expense, OcrCorrection, User, RefreshToken  # noqa: F401
+from models.db_auth import User, RefreshToken  # noqa: F401
+from models.db_expense import GeminiRawData, Expense, OcrCorrection  # noqa: F401
 
 
 @asynccontextmanager

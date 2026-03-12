@@ -10,7 +10,7 @@ from sqlalchemy import select
 from pydantic import BaseModel
 
 from database import get_db
-from models.db_models import OcrCorrection
+from models.db_expense import OcrCorrection
 
 
 router = APIRouter()
