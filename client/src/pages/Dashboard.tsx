@@ -12,6 +12,7 @@ import { getCategoryStyle } from '../constants/categories';
 import { isIncomeCategory } from '../utils/expense';
 import { CategoryPieChart, DailyBarChart, MonthlyBarChart } from '../components/Charts';
 import { CalendarView } from '../components/CalendarView';
+import { submitFeedback } from '../services/api';
 import { Link } from 'react-router-dom';
 
 type TabType = 'transactions' | 'overview' | 'calendar';
@@ -22,6 +23,7 @@ export const Dashboard: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'expense' | 'income'>('expense');
   const [editingItem, setEditingItem] = useState<ExpenseItem | null>(null);
+  const [originalItem, setOriginalItem] = useState<ExpenseItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const today = new Date();
@@ -87,6 +89,7 @@ export const Dashboard: React.FC = () => {
   }, [displayItems]);
 
   const handleEdit = (item: ExpenseItem) => {
+    setOriginalItem({ ...item });
     setEditingItem({ ...item });
     setIsModalOpen(true);
   };
@@ -98,9 +101,49 @@ export const Dashboard: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+
+    const isCategoryFilled = editingItem.category?.trim().length > 0;
+    const isSpentFilled = editingItem.spent > 0;
+    const isComplete = isCategoryFilled && isSpentFilled;
+
     updateTransaction(editingItem);
     setIsModalOpen(false);
+
+    // 완전히 입력된 경우에만 오독 사전 피드백 전송 (fire-and-forget)
+    if (isComplete && originalItem) {
+      const corrections: { wrong_text: string; correct_text: string; category_hint?: string; field_scope?: 'category' | 'sub_category' | 'description' }[] = [];
+      const textFields = [
+        { key: 'category', scope: 'category' },
+        { key: 'sub_category', scope: 'sub_category' },
+        { key: 'description', scope: 'description' },
+      ] as const;
+
+      for (const { key, scope } of textFields) {
+        const before = originalItem[key]?.trim();
+        const after = editingItem[key]?.trim();
+        if (before && after && before !== after) {
+          corrections.push({
+            wrong_text: before,
+            correct_text: after,
+            category_hint: editingItem.category,
+            field_scope: scope,
+          });
+        }
+      }
+
+      if (corrections.length > 0) {
+        submitFeedback(corrections).catch(() => {/* 피드백 실패는 무시 */});
+      }
+    }
+
     setEditingItem(null);
+    setOriginalItem(null);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setEditingItem(null);
+    setOriginalItem(null);
   };
 
   const tabs = [
@@ -417,7 +460,7 @@ export const Dashboard: React.FC = () => {
         item={editingItem}
         isNew={false}
         transactions={transactions}
-        onClose={() => { setIsModalOpen(false); setEditingItem(null); }}
+        onClose={handleModalClose}
         onSave={handleSave}
         onChange={setEditingItem}
       />

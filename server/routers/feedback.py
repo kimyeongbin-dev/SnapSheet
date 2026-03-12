@@ -21,6 +21,8 @@ class CorrectionItem(BaseModel):
     wrong_text: str      # 원래 잘못 인식된 텍스트
     correct_text: str    # 사용자가 수정한 정답 텍스트
     category_hint: str | None = None  # 문맥 힌트 (카테고리)
+    # 적용 대상 필드 제한: None이면 모든 필드, 아니면 "category"/"sub_category"/"description"
+    field_scope: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -87,6 +89,7 @@ async def submit_feedback(
                     wrong_text=item.wrong_text.strip(),
                     correct_text=item.correct_text.strip(),
                     category_hint=item.category_hint,
+                    field_scope=item.field_scope,
                     occurrence_count=1,
                     is_verified=False,
                     threshold=VERIFICATION_THRESHOLD,

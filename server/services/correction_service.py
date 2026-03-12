@@ -13,18 +13,25 @@ from models.db_models import OcrCorrection
 from models.expense import AnalysisResult, ExpenseItem, GroupedCategory
 
 
-async def load_verified_corrections(db: AsyncSession) -> dict[str, str]:
-    """
-    검증된 오독 사전을 딕셔너리로 로드
+# field_scope 값 → ExpenseItem 필드명 매핑
+_FIELD_SCOPES = ("category", "sub_category", "description")
 
-    Returns:
-        dict[str, str]: {잘못된_텍스트: 정답_텍스트} 매핑
-    """
+
+async def load_verified_corrections(db: AsyncSession) -> list["OcrCorrection"]:
+    """검증된 오독 사전 항목 리스트 로드"""
     stmt = select(OcrCorrection).where(OcrCorrection.is_verified == True)
     result = await db.execute(stmt)
-    corrections = result.scalars().all()
+    return list(result.scalars().all())
 
-    return {c.wrong_text: c.correct_text for c in corrections}
+
+def _build_field_map(corrections: list, field: str) -> dict[str, str]:
+    """특정 필드에 적용 가능한 교정 매핑 반환.
+    field_scope가 None이거나 해당 필드명이면 적용."""
+    return {
+        c.wrong_text: c.correct_text
+        for c in corrections
+        if c.field_scope is None or c.field_scope == field
+    }
 
 
 def apply_correction(text: str, corrections: dict[str, str]) -> str:
@@ -34,14 +41,17 @@ def apply_correction(text: str, corrections: dict[str, str]) -> str:
     return corrections.get(text.strip(), text)
 
 
-def apply_corrections_to_item(item: ExpenseItem, corrections: dict[str, str]) -> ExpenseItem:
-    """ExpenseItem의 텍스트 필드에 오독 사전 적용"""
+def apply_corrections_to_item(
+    item: ExpenseItem,
+    corrections_by_field: dict[str, dict[str, str]],
+) -> ExpenseItem:
+    """ExpenseItem의 텍스트 필드에 field_scope를 고려한 오독 사전 적용"""
     return ExpenseItem(
         id=item.id,
         date=item.date,
-        category=apply_correction(item.category, corrections),
-        sub_category=apply_correction(item.sub_category, corrections),
-        description=apply_correction(item.description, corrections),
+        category=apply_correction(item.category, corrections_by_field["category"]),
+        sub_category=apply_correction(item.sub_category, corrections_by_field["sub_category"]),
+        description=apply_correction(item.description, corrections_by_field["description"]),
         budget=item.budget,
         spent=item.spent,
         diff=item.diff,
@@ -62,21 +72,27 @@ async def apply_corrections_to_result(
     Returns:
         AnalysisResult: 교정된 분석 결과
     """
-    corrections = await load_verified_corrections(db)
+    correction_list = await load_verified_corrections(db)
 
     # 오독 사전이 비어있으면 원본 그대로 반환
-    if not corrections:
+    if not correction_list:
         return result
+
+    # 필드별 교정 맵 미리 빌드 (O(n) 전처리)
+    corrections_by_field = {
+        field: _build_field_map(correction_list, field)
+        for field in _FIELD_SCOPES
+    }
 
     # 새로운 grouped_items 생성
     corrected_groups: dict[str, GroupedCategory] = {}
 
     for category, group in result.grouped_items.items():
-        # 카테고리명도 교정
-        corrected_category = apply_correction(category, corrections)
+        # 카테고리명도 교정 (field_scope="category" 또는 None인 항목만 적용)
+        corrected_category = apply_correction(category, corrections_by_field["category"])
 
         corrected_items = [
-            apply_corrections_to_item(item, corrections)
+            apply_corrections_to_item(item, corrections_by_field)
             for item in group.items
         ]
 
@@ -90,8 +106,11 @@ async def apply_corrections_to_result(
                 items=corrected_items,
             )
 
+    # title은 category 스코프 교정 적용 (또는 scope=None)
+    corrected_title = apply_correction(result.title, corrections_by_field["category"])
+
     return AnalysisResult(
-        title=apply_correction(result.title, corrections),
+        title=corrected_title,
         grouped_items=corrected_groups,
         total=result.total,
     )
