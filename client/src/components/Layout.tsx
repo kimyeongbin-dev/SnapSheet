@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, Outlet } from 'react-router-dom';
 import { Wallet, LayoutGrid, Camera, TrendingUp, TrendingDown } from 'lucide-react';
 import { useTransactions } from '../context/TransactionContext';
 import { ExpenseItem } from '../types/expense';
 import { TransactionModal } from './TransactionModal';
 
-export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Layout: React.FC = () => {
   const location = useLocation();
   const { addTransaction, updateTransaction, transactions } = useTransactions();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -89,7 +89,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </nav>
 
       <main className="max-w-6xl mx-auto p-6 md:p-10">
-        {children}
+        <Outlet />
       </main>
 
       <footer className="max-w-6xl mx-auto p-10 mt-10 border-t border-black/5 text-center">
