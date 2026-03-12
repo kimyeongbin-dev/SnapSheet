@@ -106,6 +106,9 @@ class OcrCorrectionBase(SQLModel):
     wrong_text: str = Field(max_length=255)
     correct_text: str = Field(max_length=255)
     category_hint: Optional[str] = Field(default=None, max_length=50)
+    # 적용 대상 필드 제한: None이면 모든 텍스트 필드에 적용
+    # "category" | "sub_category" | "description"
+    field_scope: Optional[str] = Field(default=None, max_length=50)
 
 
 class OcrCorrection(OcrCorrectionBase, table=True):

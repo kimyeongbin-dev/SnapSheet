@@ -9,6 +9,7 @@ __pycache__/
 
 # Server temp files
 server/temp_uploads/
+server/tools/
 
 # Client
 client/node_modules/
