@@ -50,5 +50,9 @@ class UserResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class UpdateMeRequest(BaseModel):
+    username: Optional[str] = None
+
+
 class DeleteMeRequest(BaseModel):
     password: str

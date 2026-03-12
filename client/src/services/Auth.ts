@@ -17,14 +17,16 @@ export interface UserInfo {
   id: string;
   email: string;
   name?: string;
+  created_at?: string;
 }
 
 export const authApi = {
-  signup: async (email: string, password: string, passwordConfirm: string): Promise<AuthTokens> => {
+  signup: async (email: string, password: string, passwordConfirm: string, name?: string): Promise<AuthTokens> => {
     const res = await axios.post(`${BASE}/auth/signup`, {
       email,
       password,
       password_confirm: passwordConfirm,
+      username: name,
     });
     return res.data;
   },
@@ -53,6 +55,14 @@ export const authApi = {
   getMe: async (): Promise<UserInfo> => {
     const token = localStorage.getItem('access_token');
     const res = await axios.get(`${BASE}/users/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data;
+  },
+
+  updateMe: async (name: string): Promise<UserInfo> => {
+    const token = localStorage.getItem('access_token');
+    const res = await axios.patch(`${BASE}/users/me`, { username: name }, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return res.data;

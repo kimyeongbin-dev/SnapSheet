@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
-from models.auth import DeleteMeRequest, UserResponse
+from models.auth import DeleteMeRequest, UpdateMeRequest, UserResponse
 from models.db_auth import RefreshToken, User
 from services.auth_service import verify_password
 
@@ -20,6 +20,24 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.username,
+        created_at=current_user.created_at,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    request: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if request.username is not None:
+        current_user.username = request.username
+    await db.commit()
+    await db.refresh(current_user)
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
