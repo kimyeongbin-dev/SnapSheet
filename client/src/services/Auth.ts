@@ -20,8 +20,13 @@ export interface UserInfo {
 }
 
 export const authApi = {
-  signup: async (email: string, password: string): Promise<void> => {
-    await axios.post(`${BASE}/auth/signup`, { email, password });
+  signup: async (email: string, password: string, passwordConfirm: string): Promise<AuthTokens> => {
+    const res = await axios.post(`${BASE}/auth/signup`, {
+      email,
+      password,
+      password_confirm: passwordConfirm,
+    });
+    return res.data;
   },
 
   login: async (email: string, password: string): Promise<AuthTokens> => {
@@ -30,10 +35,13 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    const token = localStorage.getItem('access_token');
-    await axios.post(`${BASE}/auth/logout`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    await axios.post(
+      `${BASE}/auth/logout`,
+      { refresh_token: refreshToken },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
   },
 
   refresh: async (): Promise<AuthTokens> => {
@@ -50,10 +58,11 @@ export const authApi = {
     return res.data;
   },
 
-  deleteAccount: async (): Promise<void> => {
+  deleteAccount: async (password: string): Promise<void> => {
     const token = localStorage.getItem('access_token');
     await axios.delete(`${BASE}/users/me`, {
       headers: { Authorization: `Bearer ${token}` },
+      data: { password },
     });
   },
 };
