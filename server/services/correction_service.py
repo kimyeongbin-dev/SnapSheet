@@ -9,7 +9,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from models.db_models import OcrCorrection
+from models.db_expense import OcrCorrection
 from models.expense import AnalysisResult, ExpenseItem, GroupedCategory
 
 

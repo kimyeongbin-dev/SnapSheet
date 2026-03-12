@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from dependencies import get_current_user
 from models.auth import DeleteMeRequest, UserResponse
-from models.db_models import RefreshToken, User
+from models.db_auth import RefreshToken, User
 from services.auth_service import verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])

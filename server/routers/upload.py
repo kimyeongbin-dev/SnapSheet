@@ -23,7 +23,7 @@ from sqlalchemy import select, delete
 from PIL import Image
 
 from models.expense import UploadResponse
-from models.db_models import GeminiRawData
+from models.db_expense import GeminiRawData
 from services.gemini_service import parse_image_to_expenses
 from services.correction_service import apply_corrections_to_result
 from database import get_db

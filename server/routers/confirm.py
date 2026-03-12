@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database import get_db
-from models.db_models import GeminiRawData, Expense, OcrCorrection
+from models.db_expense import GeminiRawData, Expense, OcrCorrection
 from models.expense import ConfirmRequest, ConfirmResponse
 
 router = APIRouter()

@@ -5,13 +5,27 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
+    password_confirm: str
     username: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("비밀번호는 8자 이상이어야 합니다.")
+        return v
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "SignupRequest":
+        if self.password != self.password_confirm:
+            raise ValueError("비밀번호가 일치하지 않습니다.")
+        return self
 
 
 class LoginRequest(BaseModel):
