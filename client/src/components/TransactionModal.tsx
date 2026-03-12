@@ -91,6 +91,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   </label>
                   <input
                     list="category-options"
+                    required
                     value={item.category}
                     onChange={e => onChange({ ...item, category: e.target.value, sub_category: '' })}
                     placeholder="카테고리"
