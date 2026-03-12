@@ -4,7 +4,7 @@ python-dotenv==1.2.2
 google-genai==1.66.0
 Pillow==12.1.1
 python-multipart==0.0.22
-pydantic==2.12.5
+pydantic[email]==2.12.5
 pygments==2.19.2
 
 # Async I/O
@@ -14,3 +14,8 @@ aiofiles==24.1.0
 sqlmodel==0.0.24
 sqlalchemy[asyncio]==2.0.41
 asyncpg==0.30.0
+
+# Auth
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0

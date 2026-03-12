@@ -20,9 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.upload import router as upload_router
 from routers.feedback import router as feedback_router
 from routers.confirm import router as confirm_router
+from routers.auth import router as auth_router
+from routers.users import router as users_router
 from database import init_db, engine
 # ORM 모델 import (테이블 생성을 위해 필요)
-from models.db_models import GeminiRawData, Expense, OcrCorrection  # noqa: F401
+from models.db_models import GeminiRawData, Expense, OcrCorrection, User, RefreshToken  # noqa: F401
 
 
 @asynccontextmanager
@@ -42,7 +44,7 @@ app = FastAPI(title="SnapSheet API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +53,8 @@ app.add_middleware(
 app.include_router(upload_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
 app.include_router(confirm_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
