@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Upload, Loader2, Layers, AlertCircle, Plus,
   CheckCircle2, Trash2, Save, X
 } from 'lucide-react';
-import { uploadReceipt } from '../services/api';
+import { uploadReceipt, rollbackUpload, confirmSave, type CorrectionItem } from '../services/api';
 import { useTransactions } from '../context/TransactionContext';
 import { ExpenseItem, AnalysisResponse } from '../types/expense';
 import { getCategoryStyle } from '../constants/categories';
@@ -54,6 +54,9 @@ export const Scanner: React.FC = () => {
   // 분석 결과에서 편집 가능한 아이템 목록
   const [editableItems, setEditableItems] = useState<ExpenseItem[]>([]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [rawDataId, setRawDataId] = useState<string | null>(null);
+  // 원본 AI 추출 값 저장 (오독 사전 피드백 비교용)
+  const originalItemsRef = useRef<Map<string, Pick<ExpenseItem, 'category' | 'sub_category' | 'description'>>>(new Map());
 
   const processFile = (f: File) => {
     setFile(f);
@@ -85,10 +88,11 @@ export const Scanner: React.FC = () => {
     setError(null);
     try {
       const result = await uploadReceipt(file);
-      setAnalysisResult(result);
+      setAnalysisResult(result.analysis_result);
+      setRawDataId(result.raw_data_id);
 
       const items: ExpenseItem[] = [];
-      Object.values(result.grouped_items).forEach(group => {
+      Object.values(result.analysis_result.grouped_items).forEach(group => {
         group.items.forEach(item => {
           if (item.description || item.sub_category) {
             items.push({
@@ -101,8 +105,15 @@ export const Scanner: React.FC = () => {
       });
 
       setEditableItems(items);
-      // 기본으로 전체 체크
       setCheckedIds(new Set(items.map(i => i.id)));
+
+      // 원본 AI 텍스트 필드 저장 (오독 사전 피드백 비교용)
+      originalItemsRef.current = new Map(
+        items.map(item => [
+          item.id,
+          { category: item.category, sub_category: item.sub_category, description: item.description },
+        ])
+      );
     } catch (err: any) {
       setError(err.message || '분석 중 오류가 발생했습니다.');
     } finally {
@@ -128,10 +139,38 @@ export const Scanner: React.FC = () => {
     setEditableItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
-  const handleSave = () => {
+  const handleConfirm = async () => {
+    if (!rawDataId) return;
+
     const toSave = editableItems.filter(i => checkedIds.has(i.id));
-    toSave.forEach(item => addTransaction(item));
-    navigate('/');
+
+    // 원본 AI 값과 비교하여 수정된 텍스트 필드 → 오독 사전 피드백
+    const corrections: CorrectionItem[] = [];
+    const textFields = ['category', 'sub_category', 'description'] as const;
+    for (const item of toSave) {
+      const original = originalItemsRef.current.get(item.id);
+      if (!original) continue;
+      for (const field of textFields) {
+        const before = original[field]?.trim();
+        const after = item[field]?.trim();
+        if (before && after && before !== after) {
+          corrections.push({
+            wrong_text: before,
+            correct_text: after,
+            category_hint: item.category,
+            field_scope: field,
+          });
+        }
+      }
+    }
+
+    try {
+      await confirmSave(rawDataId, toSave, corrections);
+      toSave.forEach(item => addTransaction(item));
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || '저장 중 오류가 발생했습니다.');
+    }
   };
 
   const checkedCount = checkedIds.size;
@@ -235,7 +274,11 @@ export const Scanner: React.FC = () => {
           <p className="text-gray-500 mt-1">저장할 항목을 선택하고 내용을 수정한 후 저장하세요.</p>
         </div>
         <button
-          onClick={() => { setAnalysisResult(null); setImage(null); setFile(null); }}
+          onClick={() => {
+            if (rawDataId) rollbackUpload(rawDataId).catch(() => {});
+            setAnalysisResult(null); setImage(null); setFile(null);
+            setRawDataId(null); originalItemsRef.current.clear();
+          }}
           className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X className="w-4 h-4" /> 다시 스캔
@@ -354,15 +397,15 @@ export const Scanner: React.FC = () => {
           {/* 저장 버튼 */}
           <div className="p-4 border-t border-black/5">
             <button
-              onClick={handleSave}
-              disabled={checkedCount === 0}
+              onClick={handleConfirm}
+              disabled={checkedCount === 0 || !rawDataId}
               className={`w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 transition-all
                 ${checkedCount === 0
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xl shadow-emerald-100 active:scale-95'}`}
             >
               <Save className="w-6 h-6" />
-              {checkedCount}개 항목 가계부에 저장
+              {checkedCount}개 항목 저장하기
             </button>
           </div>
         </div>
