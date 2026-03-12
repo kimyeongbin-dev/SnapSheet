@@ -27,9 +27,14 @@ export interface GroupedExpenses {
 export interface AnalysisResponse {
   title: string;
   grouped_items: GroupedExpenses;
-  total: { 
+  total: {
     budget_sum?: number;
     spent_sum: number;
     diff_sum?: number;
   };
+}
+
+export interface UploadApiResponse {
+  analysis_result: AnalysisResponse;
+  raw_data_id: string;
 }

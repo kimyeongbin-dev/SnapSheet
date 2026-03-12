@@ -52,4 +52,24 @@ class AnalysisResult(BaseModel):
 class UploadResponse(BaseModel):
     status: str
     analysis_result: Optional[AnalysisResult] = None
+    raw_data_id: Optional[str] = None
+    message: Optional[str] = None
+
+
+class ConfirmCorrectionItem(BaseModel):
+    wrong_text: str
+    correct_text: str
+    category_hint: Optional[str] = None
+    field_scope: Optional[str] = None  # 'category' | 'sub_category' | 'description'
+
+
+class ConfirmRequest(BaseModel):
+    raw_data_id: str
+    items: list[ExpenseItem]
+    corrections: list[ConfirmCorrectionItem] = []
+
+
+class ConfirmResponse(BaseModel):
+    status: str
+    saved_count: int
     message: Optional[str] = None
