@@ -12,25 +12,26 @@ import { isIncomeCategory } from '../utils/expense';
 
 interface CalendarViewProps {
   transactions: ExpenseItem[];
+  year: number;
+  month: number;
+  onNavigate: (year: number, month: number) => void;
 }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function CalendarView({ transactions }: CalendarViewProps) {
+export function CalendarView({ transactions, year, month, onNavigate }: CalendarViewProps) {
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const prevMonth = () => {
-    if (month === 1) { setYear(y => y - 1); setMonth(12); }
-    else setMonth(m => m - 1);
+    if (month === 1) onNavigate(year - 1, 12);
+    else onNavigate(year, month - 1);
     setSelectedDate(null);
   };
 
   const nextMonth = () => {
-    if (month === 12) { setYear(y => y + 1); setMonth(1); }
-    else setMonth(m => m + 1);
+    if (month === 12) onNavigate(year + 1, 1);
+    else onNavigate(year, month + 1);
     setSelectedDate(null);
   };
 
