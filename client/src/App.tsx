@@ -23,33 +23,6 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   return isLoggedIn ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-// Private Route로 감싸서 로그인 여부에 따라 접근 제어
-
-// export default function App() {
-//   return (
-//     <BrowserRouter>
-//       <AnimatePresence mode="wait">
-//         <Routes>
-//           <Route path="/login" element={<Login />} />
-//           <Route path="/signup" element={<Signup />} />
-
-//           <Route element={
-//             <PrivateRoute>
-//               <Layout />
-//             </PrivateRoute>
-//           }>
-//             <Route path="/" element={<Dashboard />} />
-//             <Route path="/scanner" element={<Scanner />} />
-//           </Route>
-
-//           {/* 기본 루트 → 로그인으로 */}
-//           <Route path="*" element={<Navigate to="/login" replace />} />
-//         </Routes>
-//       </AnimatePresence>
-//     </BrowserRouter>
-//   );
-// }
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -58,7 +31,11 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
 
-          <Route element={<Layout />}>
+          <Route element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }>
             <Route path="/" element={<Dashboard />} />
             <Route path="/scanner" element={<Scanner />} />
           </Route>

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Wallet, Mail, Lock, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Wallet, Mail, Lock, User, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { authApi } from '../services/Auth';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,6 +14,7 @@ export const Signup: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -29,7 +30,7 @@ export const Signup: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.signup(email, password, passwordConfirm);
+      await authApi.signup(email, password, passwordConfirm, name || undefined);
       await login(email, password);
       navigate('/scanner');
     } catch (err: any) {
@@ -110,6 +111,21 @@ export const Signup: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* 이름 */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Name <span className="text-gray-300 normal-case">(선택)</span></label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="홍길동"
+                  className="w-full bg-gray-50 border border-black/5 rounded-2xl pl-11 pr-4 py-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:font-normal placeholder:text-gray-300"
+                />
+              </div>
+            </div>
+
             {/* 이메일 */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</label>

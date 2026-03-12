@@ -13,6 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,6 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(me);
   };
 
+  const refreshUser = async () => {
+    const me = await authApi.getMe();
+    setUser(me);
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
@@ -61,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       login,
       logout,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>
