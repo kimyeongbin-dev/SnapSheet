@@ -29,7 +29,7 @@ export const Signup: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.signup(email, password);
+      await authApi.signup(email, password, passwordConfirm);
       await login(email, password);
       navigate('/scanner');
     } catch (err: any) {
