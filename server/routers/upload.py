@@ -1,22 +1,32 @@
 """
 [역할] 이미지 업로드 및 분석 엔드포인트
 - POST /api/upload : 이미지를 받아 Gemini 분석 후 결과 반환
-- 임시 파일 저장 및 처리 후 삭제
+- [A] 원본 JSON → gemini_raw_data 테이블 저장
+- [C] 후처리 데이터 → expenses 테이블 저장
+
+[성능 최적화]
+- Gemini API 호출: asyncio.to_thread로 비동기화
+- 파일 I/O: aiofiles로 비동기화
+- DB 저장: bulk insert로 일괄 삽입
 
 [추가 예정]
 - 사용자 인증 검증 (JWT)
-- 분석 결과 DB 저장
 - 파일 형식 및 크기 유효성 검사
 """
 import os
 import uuid
-import shutil
+import asyncio
+import aiofiles
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
 
 from models.expense import UploadResponse
+from models.db_models import GeminiRawData, Expense
 from services.gemini_service import parse_image_to_expenses
+from services.correction_service import apply_corrections_to_result
+from database import get_db
 
 
 router = APIRouter()
@@ -26,22 +36,64 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/upload")
-async def parse_uploaded_image(file: UploadFile = File(...)) -> UploadResponse:
+async def parse_uploaded_image(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+) -> UploadResponse:
     temp_file_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}_{file.filename}")
 
     try:
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # 1. 임시 파일 저장 (비동기 I/O)
+        async with aiofiles.open(temp_file_path, "wb") as buffer:
+            content = await file.read()
+            await buffer.write(content)
 
-        img = Image.open(temp_file_path).convert("RGB")
-        analysis_result = parse_image_to_expenses(img)
+        # 2. Gemini 분석 (동기 함수를 비동기로 실행)
+        def _sync_parse():
+            img = Image.open(temp_file_path).convert("RGB")
+            return parse_image_to_expenses(img)
+
+        raw_json, analysis_result = await asyncio.to_thread(_sync_parse)
+
+        # 3. [B] 오독 사전 기반 후처리 적용
+        analysis_result = await apply_corrections_to_result(analysis_result, db)
+
+        # 4. [A] 원본 JSON → gemini_raw_data 저장
+        raw_data = GeminiRawData(
+            image_filename=file.filename or "unknown",
+            raw_json=raw_json,
+        )
+        db.add(raw_data)
+        await db.flush()  # raw_data.id 생성을 위해 flush
+
+        # 5. [C] 후처리 데이터 → expenses 저장 (Bulk Insert)
+        expenses_to_add = []
+        for category, group in analysis_result.grouped_items.items():
+            for item in group.items:
+                expenses_to_add.append(Expense(
+                    raw_data_id=raw_data.id,
+                    date=item.date or None,
+                    category=item.category,
+                    sub_category=item.sub_category or None,
+                    description=item.description or None,
+                    budget=item.budget,
+                    spent=item.spent,
+                    diff=item.diff,
+                ))
+        db.add_all(expenses_to_add)
+
+        # 6. 트랜잭션 커밋
+        await db.commit()
 
         return UploadResponse(status="success", analysis_result=analysis_result)
 
     except Exception as e:
+        # 에러 발생 시 롤백
+        await db.rollback()
         print(f"서버 내부 에러 발생: {str(e)}")
         return UploadResponse(status="error", message=str(e))
 
     finally:
+        # 임시 파일 삭제 (비동기)
         if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+            await asyncio.to_thread(os.remove, temp_file_path)

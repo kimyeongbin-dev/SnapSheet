@@ -4,8 +4,8 @@
 * **OS:** Windows 기반 환경
 * **Frontend:** React (Vite 빌드 도구 사용), TypeScript (.tsx, .ts)
 * **Backend:** Python (Miniconda 가상환경 관리), FastAPI, Pydantic (데이터 검증)
-* **AI Pipeline:** PP-StructureV3 (이미지 내 표 구조 인식 및 텍스트 추출)
-* **Database:** PostgreSQL (Docker 컨테이너로 로컬 실행)
+* **AI Pipeline:** Google Gemini 2.0 Flash (이미지 내 표 구조 인식 및 텍스트 추출)
+* **Database:** Supabase (클라우드 PostgreSQL, Session Pooler 사용)
 
 ## 2. Git 브랜치 및 커밋 전략 (GitHub Flow)
 안정적인 메인 코드 유지와 명확한 역할 분담을 위해 GitHub Flow 전략을 사용합니다.
@@ -51,4 +51,4 @@
 ## 4. 데이터베이스 설계 원칙 (Database Strategy)
 문서 종류(가계부, 근무표 등)마다 달라지는 표 구조를 유연하게 처리하기 위해 관계형 모델과 NoSQL 방식을 혼합하여 사용합니다.
 * **정형 데이터 (관계형 테이블):** 사용자 정보, 문서의 메타데이터(업로드 시간, 파일명 등)는 일반적인 RDBMS 테이블 구조로 단단하게 설계하여 무결성을 보장합니다.
-* **비정형 데이터 (JSONB 활용):** PP-StructureV3가 추출한 가변적이고 복잡한 표 내부 데이터는 PostgreSQL의 `JSONB` 데이터 타입 컬럼에 통째로 저장하여 유연성과 검색 속도를 확보합니다.
+* **비정형 데이터 (JSONB 활용):** Gemini가 추출한 가변적이고 복잡한 표 내부 데이터는 PostgreSQL의 `JSONB` 데이터 타입 컬럼에 통째로 저장하여 유연성과 검색 속도를 확보합니다.
