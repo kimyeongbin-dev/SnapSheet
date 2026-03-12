@@ -20,7 +20,12 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.username,
+        created_at=current_user.created_at,
+    )
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
